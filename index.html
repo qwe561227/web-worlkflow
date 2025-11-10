@@ -1,288 +1,305 @@
+<!-- Chosen Palette: Calm Harmony (Slate background, Custom colors, White cards) -->
+<!-- Application Structure Plan: 一個單頁的響應式提案網頁。架構是階層式的：1. 英雄區塊（價值主張），2. 核心服務（三層火箭式定價網格），3. 新增的「詳細內容」區塊（JavaScript 動態載入），4. 次要服務（堆疊列表）。此結構旨在引導客戶清晰地瀏覽決策漏斗，點擊按鈕顯示詳細內容，能加深對各方案價值的理解。 -->
+<!-- Visualization & Content Choices: 來源：fin_proposal_v5.md, plan_b_details.md。目標：呈現三層定價並提供互動式詳情。方法：響應式三欄 Tailwind 網格 (HTML/CSS) + JS 事件監聽。互動：點擊方案按鈕 (data-plan) 會觸發 JS 函數 (showDetails)，動態生成方案詳情 HTML 並注入到 #plan-details-container 中，最後平滑滾動到視圖。理由：這是將靜態提案升級為互動體驗的最佳方式，能有效傳達方案B（從 plan_b_details.md 載入）的複雜價值。 -->
+<!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="zh-Hant" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fin｜互動式SOP作戰手冊</title>
+    <title>AI 實戰顧問 Fin - 服務方案</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
-    <!-- 
-    Chosen Palette: Professional Slate & Interactive Blue
-    Application Structure Plan: A single-page application designed as an interactive SOP (Standard Operating Procedure) manual. The structure is a vertical accordion, where each stage of the client communication process is a collapsible section. This allows the user to focus on one stage at a time. Key interactions include clickable checklists for actions, and a modal window for the detailed "Golden Questions," transforming the static document into a dynamic, actionable tool for professional use.
-    Visualization & Content Choices: Process Stages -> Accordion Layout (HTML/JS) -> Goal: Focused Navigation -> Justification: Reduces cognitive load by hiding irrelevant details. Key Actions -> Interactive Checklist (HTML) -> Goal: Progress Tracking -> Justification: Makes the SOP a practical, reusable tool for each client. Golden Questions -> Modal Window (JS) -> Goal: Emphasize Importance & Declutter -> Justification: Presents critical information on-demand without cluttering the main view.
-    CONFIRMATION: NO SVG graphics used. NO Mermaid JS used.
-    -->
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
         body {
-            font-family: 'Noto Sans TC', sans-serif;
-            background-color: #f1f5f9; /* slate-100 */
+            font-family: 'Inter', 'Noto Sans TC', sans-serif;
+            background-color: #f8fafc; /* Tailwind bg-slate-50 */
         }
-        .accordion-header {
-            cursor: pointer;
-            transition: background-color 0.2s ease-in-out;
+        .pricing-card {
+            transition: all 0.3s ease;
+            height: 100%; /* 確保卡片等高 */
+            display: flex;
+            flex-direction: column;
         }
-        .accordion-header:hover {
-            background-color: #f8fafc; /* slate-50 */
+        .pricing-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
-        .accordion-content {
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.4s ease-in-out, padding 0.4s ease-in-out;
-            padding: 0 1.5rem;
+        .card-content {
+            flex-grow: 1; /* 讓內容區塊填滿 */
         }
-        .accordion-content.open {
-            max-height: 1000px; /* Arbitrary large value */
-            padding: 1.5rem 1.5rem;
-        }
-        .accordion-icon {
-            transition: transform 0.4s ease-in-out;
-        }
-        .accordion-header.open .accordion-icon {
-            transform: rotate(90deg);
-        }
-        .modal-overlay {
-            display: none;
-            position: fixed;
-            z-index: 50;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.6);
+        .check-icon {
+            flex-shrink: 0;
+            width: 1.25rem; /* w-5 */
+            height: 1.25rem; /* h-5 */
+            color: white;
+            border-radius: 9999px; /* rounded-full */
+            display: flex;
             align-items: center;
             justify-content: center;
-        }
-        .modal-content {
-            transform: translateY(-50px);
-            opacity: 0;
-            transition: all 0.3s ease-out;
-        }
-        .modal-overlay.open {
-            display: flex;
-        }
-        .modal-overlay.open .modal-content {
-            transform: translateY(0);
-            opacity: 1;
-        }
-        .checklist-label {
-            display: flex;
-            align-items: center;
-            cursor: pointer;
-        }
-        .checklist-label input:checked ~ span {
-            text-decoration: line-through;
-            color: #94a3b8; /* slate-400 */
+            font-weight: 700;
+            font-size: 0.875rem; /* text-sm */
         }
     </style>
 </head>
-<body class="text-slate-800">
+<body class="text-gray-900">
 
-    <div class="container mx-auto max-w-3xl px-4 py-12">
-        <header class="text-center mb-12">
-            <h1 class="text-4xl font-black text-slate-900">互動式SOP作戰手冊</h1>
-            <p class="text-xl text-slate-600 mt-2">您的顧問級服務流程儀表板</p>
-        </header>
+    <div class="container mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
 
-        <div class="space-y-4">
-            <!-- Stage 0 -->
-            <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-                <div class="accordion-header flex items-center justify-between p-6">
-                    <div class="flex items-center">
-                        <div class="text-2xl font-black text-blue-500 mr-4">0</div>
-                        <div>
-                            <h2 class="text-xl font-bold text-slate-800">準備階段：客戶研究</h2>
-                            <p class="text-sm text-slate-500">心態：偵探 🕵️｜在接觸前，贏得先機</p>
+        <!-- 頂部標題區 -->
+        <div class="text-center mb-16">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight">
+                AI 實戰顧問 Fin - 服務方案
+            </h1>
+            <p class="mt-6 max-w-3xl mx-auto text-lg text-gray-700">
+                核心理念： 我們提供三種層級的服務，協助「有實力、缺曝光」的傳統產業專家</p>透過 AI 賦能的短影音策略，轉型為高價值的線上 IP。
+            </p>
+        </div>
+
+        <!-- 核心服務：三層火箭方案 -->
+        <h2 class="text-3xl font-bold text-center mb-12">核心服務：品牌 IP 打造三層火箭</h2>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+
+            <!-- 方案A：品牌起步 -->
+            <div class="pricing-card bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
+                <div class="card-content">
+                    <h3 class="text-2xl font-bold text-gray-900">方案A：品牌起步</h3>
+                    <p class="mt-4 text-gray-600">核心目標： 快速測試市場，建立您的第一批核心影像素材。</p>
+                    
+                    <div class="mt-8">
+                        <span class="text-3xl font-bold text-gray-500 line-through">$18,000</span>
+                        <div class="flex items-baseline justify-center">
+                            <span class="text-5xl font-extrabold text-red-600">$15,000</span>
+                            <span class="ml-2 text-xl font-bold text-red-600">(9折)</span>
                         </div>
                     </div>
-                    <div class="accordion-icon text-2xl text-slate-400">▶</div>
-                </div>
-                <div class="accordion-content">
-                    <h3 class="font-bold text-slate-700 mb-3">🚀 關鍵行動清單：</h3>
-                    <ul class="space-y-3">
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span><strong>客戶背景調查：</strong>分析其社群內容、質感與互動缺口。</span></label></li>
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span><strong>自我價值定位：</strong>思考我能為他提供的最大價值是什麼。</span></label></li>
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span><strong>客製化素材準備：</strong>挑選1-2個最能解決他痛點的案例。</span></label></li>
-                    </ul>
-                </div>
-            </div>
 
-            <!-- Stage 1 -->
-            <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-                <div class="accordion-header flex items-center justify-between p-6">
-                    <div class="flex items-center">
-                        <div class="text-2xl font-black text-blue-500 mr-4">1</div>
-                        <div>
-                            <h2 class="text-xl font-bold text-slate-800">初步接觸：建立連結</h2>
-                            <p class="text-sm text-slate-500">心態：顧問 👨‍🏫｜目標是贏得一次深度對話</p>
-                        </div>
-                    </div>
-                    <div class="accordion-icon text-2xl text-slate-400">▶</div>
-                </div>
-                <div class="accordion-content">
-                    <h3 class="font-bold text-slate-700 mb-3">🚀 關鍵行動清單：</h3>
-                    <ul class="space-y-3">
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>**客製化破冰：** 發送「我注意到...我欣賞...」的訊息。</span></label></li>
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>**策略性展示：** 附上最相關案例並簡述其解決方案。</span></label></li>
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>**高價值邀約：** 邀請進行15-20分鐘的「品牌內容策略健檢」。</span></label></li>
-                    </ul>
-                </div>
-            </div>
-
-            <!-- Stage 2 -->
-            <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-                <div class="accordion-header flex items-center justify-between p-6">
-                    <div class="flex items-center">
-                        <div class="text-2xl font-black text-blue-500 mr-4">2</div>
-                        <div>
-                            <h2 class="text-xl font-bold text-slate-800">價值探索會議：深度問診</h2>
-                            <p class="text-sm text-slate-500">心態：醫生 🩺｜徹底忘掉報價，專注於診斷</p>
-                        </div>
-                    </div>
-                     <div class="accordion-icon text-2xl text-slate-400">▶</div>
-                </div>
-                <div class="accordion-content">
-                     <h3 class="font-bold text-slate-700 mb-3">🚀 關鍵行動清單：</h3>
-                    <ul class="space-y-3">
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>**開場定調：** 重申會議目標是「判斷我是否能幫上忙」。</span></label></li>
-                        <li>
-                            <button id="openModalBtn" class="w-full text-left bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold py-2 px-4 rounded-lg transition-colors">
-                                ✓ **執行顧問級黃金提問** (點擊查看問題清單)
-                            </button>
+                    <ul class="mt-8 space-y-4 text-gray-700">
+                        <li class="flex items-start space-x-3">
+                            <span class="check-icon bg-green-500">✓</span>
+                            <span>3 支 高質感短影音 (含企劃/拍攝/剪輯)</span>
                         </li>
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>**價值重述：** 用「所以，聽起來您真正的目標是...」來總結。</span></label></li>
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>**設定下一步：** 承諾將為他「量身打造」一份合作提案。</span></label></li>
+                        <li class="flex items-start space-x-3">
+                            <span class="check-icon bg-green-500">✓</span>
+                            <span>3 張 專業產品照</span>
+                        </li>
                     </ul>
+                    
                 </div>
+                <button type-="button" data-plan="A" class="plan-button mt-10 w-full block bg-gray-800 text-white text-center py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 transition-colors">
+                    查看詳情
+                </button>
             </div>
 
-             <!-- Stage 3 & 4 -->
-            <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-                <div class="accordion-header flex items-center justify-between p-6">
-                    <div class="flex items-center">
-                        <div class="text-2xl font-black text-blue-500 mr-4">3</div>
-                        <div>
-                            <h2 class="text-xl font-bold text-slate-800">提案與簽約：呈現藍圖</h2>
-                            <p class="text-sm text-slate-500">心態：建築師 🏗️｜呈現一份無法拒絕的解決方案</p>
-                        </div>
+            <!-- 方案B：AI 策略 - 中立化 -->
+            <div class="pricing-card bg-white p-8 rounded-2xl shadow-lg border border-gray-200 relative">
+                <div class="card-content">
+                    <h3 class="text-2xl font-bold text-gray-900">方案B：AI 策略</h3>
+                    <p class="mt-4 text-gray-600">核心目標： 策略規劃，為您注入「AI 策略大腦」，提供完整彈藥庫。</p>
+                    
+                    <div class="mt-8">
+                        <span class="text-5xl font-extrabold text-gray-900">$25,000</span>
                     </div>
-                    <div class="accordion-icon text-2xl text-slate-400">▶</div>
-                </div>
-                <div class="accordion-content">
-                     <h3 class="font-bold text-slate-700 mb-3">🚀 關鍵行動清單：</h3>
-                    <ul class="space-y-3">
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>**撰寫客製化提案：** 在提案中寫滿客戶的原話。</span></label></li>
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>**安排價值導覽會議 (可選)：** 親自解說提案價值。</span></label></li>
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>**引導正式簽約：** 發送最終合約書並引導簽署。</span></label></li>
+
+                    <ul class="mt-8 space-y-4 text-gray-700">
+                        <li class="flex items-start space-x-3">
+                            <span class="check-icon bg-green-500">✓</span>
+                            <span>1 份 【AI 品牌智能體】 (客製化 AI 助手)</span>
+                        </li>
+                        <li class="flex items-start space-x-3">
+                            <span class="check-icon bg-green-500">✓</span>
+                            <span>90分鐘深度IP訪談</span>
+                        </li>
+                        <li class="flex items-start space-x-3">
+                            <span class="check-icon bg-green-500">✓</span>
+                            <span>1 份 品牌 IP 策略定位書 (Slogan, 人設)</span>
+                        </li>
+                        <li class="flex items-start space-x-3">
+                            <span class="check-icon bg-green-500">✓</span>
+                            <span>1 份 完整概念腳本庫(共 12 支)</span>
+                        </li>
                     </ul>
+                    
                 </div>
+                <button type="button" data-plan="B" class="plan-button mt-10 w-full block bg-gray-800 text-white text-center py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 transition-colors">
+                    查看詳情
+                </button>
             </div>
-            
-            <div class="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-                <div class="accordion-header flex items-center justify-between p-6">
-                    <div class="flex items-center">
-                        <div class="text-2xl font-black text-blue-500 mr-4">4</div>
-                        <div>
-                            <h2 class="text-xl font-bold text-slate-800">專案啟動：創造絕佳體驗</h2>
-                            <p class="text-sm text-slate-500">心態：領航員 🧭｜從第一天起，就讓客戶感到安心</p>
+
+            <!-- 方案C：品牌打造 (The Anchor) -->
+            <div class="pricing-card bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
+                <div class="card-content">
+                    <h3 class="text-2xl font-bold text-gray-900">方案C：品牌打造全案</h3>
+                    <p class="mt-4 text-gray-600">核心目標： 一站式執行 ，從 0 到 1 建立所有品牌資產。</p>
+                    
+                    <div class="mt-8">
+                        <span class="text-3xl font-bold text-gray-500 line-through">$80,000</span>
+                        <div class="flex items-baseline justify-center">
+                            <span class="text-5xl font-extrabold text-red-600">$65,000</span>
+                            <span class="ml-2 text-xl font-bold text-red-600">(8折)</span>
                         </div>
                     </div>
-                    <div class="accordion-icon text-2xl text-slate-400">▶</div>
-                </div>
-                <div class="accordion-content">
-                    <h3 class="font-bold text-slate-700 mb-3">🚀 關鍵行動清單：</h3>
-                    <ul class="space-y-3">
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>**發送「歡迎包裹」Email。**</span></label></li>
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>**召開「專案啟動會議」。**</span></label></li>
-                        <li><label class="checklist-label"><input type="checkbox" class="mr-3 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"><span>**交付「專案儀表板」Notion連結。**</span></label></li>
+
+                    <ul class="mt-8 space-y-4 text-gray-700">
+                        <li class="flex items-start space-x-3">
+                            <span class="check-icon bg-green-500">✓</span>
+                            <span>12 支 高質感短影音 (含企劃/拍攝/剪輯)</span>
+                        </li>
+                        <li class="flex items-start space-x-3">
+                            <span class="check-icon bg-green-500">✓</span>
+                            <span>1 頁 品牌形象網站</span>
+                        </li>
+                        <li class="flex items-start space-x-3">
+                            <span class="check-icon bg-green-500">✓</span>
+                            <span>3 張 專業產品照</span>
+                        </li>
                     </ul>
+                    
                 </div>
+                <button type="button" data-plan="C" class="plan-button mt-10 w-full block bg-gray-800 text-white text-center py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 transition-colors">
+                    查看詳情
+                </button>
             </div>
 
         </div>
-    </div>
-    
-    <!-- Modal -->
-    <div id="questionsModal" class="modal-overlay">
-        <div class="modal-content bg-white w-11/12 max-w-2xl rounded-lg shadow-xl p-6 md:p-8">
-            <div class="flex justify-between items-center mb-6">
-                <h3 class="text-2xl font-bold text-slate-800">顧問級黃金提問清單 🩺</h3>
-                <button id="closeModalBtn" class="text-3xl text-slate-400 hover:text-slate-600">&times;</button>
+
+        <!-- 👇 新增的動態內容區塊 👇 -->
+        <div id="plan-details-container" class="mt-16 max-w-5xl mx-auto hidden transition-all duration-300">
+            <div id="plan-details-content" class="bg-white p-8 sm:p-12 rounded-2xl shadow-xl border border-gray-200">
+                <!-- JavaScript 將在這裡注入內容 -->
             </div>
-            <div class="space-y-4 text-sm text-slate-700">
-                <div>
-                    <p class="font-semibold text-slate-600 mb-2">【關於現況與挑戰】</p>
-                    <ul class="space-y-2 list-disc list-inside">
-                        <li>「在經營品牌上，目前讓您**最睡不著覺**的挑戰是什麼？」</li>
-                        <li>「如果用一個詞來形容您現在的社群，您會用什麼？您**希望**它變成什麼？」</li>
-                    </ul>
-                </div>
-                <div>
-                    <p class="font-semibold text-slate-600 mb-2">【關於目標與願景】</p>
-                    <ul class="space-y-2 list-disc list-inside">
-                        <li>「如果這次合作非常成功，一年後，您希望您的品牌達到什麼樣的**具體成果**？（不只是粉絲數，而是商業上的）」</li>
-                        <li>「您最希望您的客戶在體驗完您的服務/產品後，會跟朋友怎麼**形容**您？」</li>
-                    </ul>
-                </div>
-                <div>
-                    <p class="font-semibold text-slate-600 mb-2">【關於資源與期待】</p>
-                    <ul class="space-y-2 list-disc list-inside">
-                        <li>「過去在行銷上，您覺得哪一筆投資**最值得**？哪一筆**最浪費**？為什麼？」</li>
-                        <li>「除了影片製作，您認為在合作中，我還能在哪些方面為您提供**額外的價值**？」</li>
-                    </ul>
+        </div>
+
+        <!-- 單點服務 & AI 顧問方案 -->
+        <div class="mt-20 pt-12 border-t border-gray-200">
+            <div class="max-w-3xl mx-auto text-center">
+                <h2 class="text-3xl font-bold text-gray-900">單點服務 & AI 顧問方案</h2>
+               
+            </div>
+
+            <div class="mt-12 max-w-3xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200">
+                <div class="divide-y divide-gray-200">
+                    
+                    <div class="flex flex-col sm:flex-row justify-between items-center p-6">
+                        <div class="mb-2 sm:mb-0">
+                            <h4 class="text-lg font-semibold text-gray-900">單支短影音</h4>
+                            <p class="text-sm text-gray-600">企劃 + 拍攝 + 剪輯 (單次需求)。</p>
+                        </div>
+                        <span class="text-2xl font-bold text-gray-900">$6,000</span>
+                    </div>
+                    
+                    <div class="flex flex-col sm:flex-row justify-between items-center p-6">
+                        <div class="mb-2 sm:mb-0">
+                            <h4 class="text-lg font-semibold text-gray-900">一頁式網站設計</h4>
+                            <p class="text-sm text-gray-600">品牌形象網站架設。</p>
+                        </div>
+                        <span class="text-2xl font-bold text-gray-900">$8,000</span>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row justify-between items-center p-6 bg-gray-50">
+                        <div class="mb-2 sm:mb-0">
+                            <h4 class="text-lg font-semibold text-gray-900">AI 企業內訓</h4>
+                            <p class="text-sm text-gray-600">為您的團隊導入 AI 工作流、建立專屬智能體。</p>
+                        </div>
+                        <span class="text-xl font-bold text-gray-700">$ 專案洽談</span>
+                    </div>
+
                 </div>
             </div>
         </div>
+
+        <!-- 頁腳 -->
+        <footer class="mt-20 pt-12 text-center border-t border-gray-200">
+            <p class="text-base text-gray-500">© 2025 Fin (AI 實戰顧問). All rights reserved.</p>
+        </footer>
+
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const accordions = document.querySelectorAll('.accordion-header');
-            const modal = document.getElementById('questionsModal');
-            const openModalBtn = document.getElementById('openModalBtn');
-            const closeModalBtn = document.getElementById('closeModalBtn');
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            const planDetails = {
+                'A': {
+                    title: '方案A：品牌起步 (詳細內容)',
+                    description: '此方案專為希望快速測試市場、建立基礎素材的客戶設計。我們將集中資源，在最短時間內產出高質感的影像素材。',
+                    features: [
+                        { name: '3 支高質感短影音', desc: '我們將與您共同企劃 3 支核心影片，內容可聚焦於「核心服務介紹」、「產品展示」或「創辦人理念」，並在單次拍攝日內（約 4 小時）完成所有素材拍攝。' },
+                        { name: '3 張專業產品照', desc: '在拍攝影片的同時，為您的核心產品拍攝專業、高解析度的情境照片，可用於網站或社群媒體。' },
+                        { name: '顧問建議', desc: '此方案適合已有網站，或希望先透過影片在社群媒體試水溫的客戶。' }
+                    ]
+                },
+                'B': {
+                    title: '方案B：AI 策略啟動包 (深度解析)',
+                    description: '這不只是一份腳本，這是一套完整的「AI 賦能系統」。我們將交付您的「策略大腦」，讓您擁有無限的創意產能，並真正「擁有」您的品牌策略。',
+                    features: [
+                        { name: '什麼是「AI 品牌智能體」？', desc: '這不是 ChatGPT。這是一個由我（Fin）親自為您量身打造的 AI 策略夥伴。我會將我們 90 分鐘深度訪談的所有品牌資訊——您的 IP 人設、Slogan、獨特賣點、目標客群、甚至您的口吻——全部灌輸到這個 AI 智能體中。它就是您品牌的 AI 分身。' },
+                        { name: '核心任務 1：24/7 腳本創意引擎', desc: '您不必再為「下週要拍什麼」而焦慮。您可以隨時命令它：「給我 5 個『老闆真心話』的新腳本，要融合『反向操作』風格。」或「我今天遇到一個客人... 幫我把這個故事寫成『聊癒系』腳本。」' },
+                        { name: '核心任務 2：策略腦力激盪夥伴', desc: '它能以「品牌顧問」的思考模式協助您。您可以命令它：「我下個月想主推『水霧染』，幫我規劃 3 個符合我『聊癒系』IP 的創意切角。」' },
+                        { name: '方案 B 的真正價值', desc: '方案 A 是我給您「3 條魚」。方案 C 是我「每個月幫您釣 12 條魚」。**方案 B 是我教您如何打造一個「AI 自動化釣魚工廠」。**' }
+                    ]
+                },
+                'C': {
+                    title: '方案C：品牌打造全案 (詳細內容)',
+                    description: '此方案是我們的「一站式」旗艦服務 (Done for you)。您只需專注於您的專業，我們將為您處理從策略、腳b本、拍攝、剪輯到網站架設的所有執行細節。',
+                    features: [
+                        { name: '12 支高質感短影音', desc: '一個完整季度的內容佈局。我們將執行我們規劃的「核心內容鐵三角」（例如：專業知識、老闆真心話、療癒故事），確保您的品牌形象立體而豐滿。' },
+                        { name: '1 頁品牌形象網站', desc: '完整的一站式網站建置，包含專業預約表單，作為您所有流量的最終「承接頁」與「轉單中心」。' },
+                        { name: 'AI 策略導入', desc: '此方案**同樣包含**方案 B 的「IP 策略定位書」與「AI 品牌智能體」，確保我們的執行工作 100% 基於 AI 策略，並讓您在合約期滿後，依然擁有持續產出創意的能力。' }
+                    ]
+                }
+            };
 
-            accordions.forEach(accordion => {
-                accordion.addEventListener('click', function () {
-                    const content = this.nextElementSibling;
-                    
-                    if (content.classList.contains('open')) {
-                        content.classList.remove('open');
-                        this.classList.remove('open');
-                    } else {
-                        // Optional: Close all other accordions
-                        accordions.forEach(otherAccordion => {
-                            if(otherAccordion !== this) {
-                                otherAccordion.nextElementSibling.classList.remove('open');
-                                otherAccordion.classList.remove('open');
-                            }
-                        });
-                        
-                        content.classList.add('open');
-                        this.classList.add('open');
-                    }
+            const detailsContainer = document.getElementById('plan-details-container');
+            const detailsContent = document.getElementById('plan-details-content');
+            const buttons = document.querySelectorAll('.plan-button');
+
+            function showDetails(plan) {
+                const content = planDetails[plan];
+                if (!content) return;
+
+                let featuresHtml = content.features.map(feature => `
+                    <li class="mb-4">
+                        <h4 class="text-lg font-semibold text-indigo-700">${feature.name}</h4>
+                        <p class="text-gray-600 mt-1">${feature.desc}</p>
+                    </li>
+                `).join('');
+
+                let html = `
+                    <div class="relative">
+                        <button id="close-details-btn" type="button" class="absolute -top-4 -right-4 sm:-top-8 sm:-right-8 text-gray-400 hover:text-gray-600 transition-colors" aria-label="關閉詳情">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                        </button>
+                        <h2 class="text-3xl font-extrabold text-gray-900 mb-4">${content.title}</h2>
+                        <p class="text-lg text-gray-700 mb-8">${content.description}</p>
+                        <ul class="border-t border-gray-200 pt-8">
+                            ${featuresHtml}
+                        </ul>
+                    </div>
+                `;
+
+                detailsContent.innerHTML = html;
+                detailsContainer.classList.remove('hidden');
+
+                detailsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+                document.getElementById('close-details-btn').addEventListener('click', hideDetails);
+            }
+
+            function hideDetails() {
+                detailsContainer.classList.add('hidden');
+                detailsContent.innerHTML = '';
+            }
+
+            buttons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const plan = button.getAttribute('data-plan');
+                    showDetails(plan);
                 });
             });
-            
-            if(openModalBtn) {
-                openModalBtn.addEventListener('click', () => modal.classList.add('open'));
-            }
-            
-            if(closeModalBtn) {
-                closeModalBtn.addEventListener('click', () => modal.classList.remove('open'));
-            }
 
-            if(modal) {
-                modal.addEventListener('click', (e) => {
-                    if (e.target === modal) {
-                        modal.classList.remove('open');
-                    }
-                });
-            }
         });
     </script>
+
 </body>
 </html>
-
