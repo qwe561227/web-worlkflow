@@ -1,304 +1,654 @@
-<!-- Chosen Palette: Calm Harmony (Slate background, Custom colors, White cards) -->
-<!-- Application Structure Plan: 一個單頁的響應式提案網頁。架構是階層式的：1. 英雄區塊（價值主張），2. 核心服務（三層火箭式定價網格），3. 新增的「詳細內容」區塊（JavaScript 動態載入），4. 次要服務（堆疊列表）。此結構旨在引導客戶清晰地瀏覽決策漏斗，點擊按鈕顯示詳細內容，能加深對各方案價值的理解。 -->
-<!-- Visualization & Content Choices: 來源：fin_proposal_v5.md, plan_b_details.md。目標：呈現三層定價並提供互動式詳情。方法：響應式三欄 Tailwind 網格 (HTML/CSS) + JS 事件監聽。互動：點擊方案按鈕 (data-plan) 會觸發 JS 函數 (showDetails)，動態生成方案詳情 HTML 並注入到 #plan-details-container 中，最後平滑滾動到視圖。理由：這是將靜態提案升級為互動體驗的最佳方式，能有效傳達方案B（從 plan_b_details.md 載入）的複雜價值。 -->
-<!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
-<!DOCTYPE html>
-<html lang="zh-Hant" class="scroll-smooth">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 實戰顧問 Fin - 服務方案</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
-        body {
-            font-family: 'Inter', 'Noto Sans TC', sans-serif;
-            background-color: #f8fafc; /* Tailwind bg-slate-50 */
-        }
-        .pricing-card {
-            transition: all 0.3s ease;
-            height: 100%; /* 確保卡片等高 */
-            display: flex;
-            flex-direction: column;
-        }
-        .pricing-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-        }
-        .card-content {
-            flex-grow: 1; /* 讓內容區塊填滿 */
-        }
-        .check-icon {
-            flex-shrink: 0;
-            width: 1.25rem; /* w-5 */
-            height: 1.25rem; /* h-5 */
-            color: white;
-            border-radius: 9999px; /* rounded-full */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 0.875rem; /* text-sm */
-        }
-    </style>
-</head>
-<body class="text-gray-900">
+import React, { useState } from 'react';
+import { ClipboardCopy, CheckCircle, ChevronDown, ChevronUp, User, Target, BarChart, Layers, Users, Settings } from 'lucide-react';
 
-    <div class="container mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
+// --- 子元件定義 ---
 
-        <!-- 頂部標題區 -->
-        <div class="text-center mb-16">
-            <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 leading-tight">
-                AI 實戰顧問 Fin - 服務方案
-            </h1>
-            <p class="mt-6 max-w-3xl mx-auto text-lg text-gray-700">
-                核心理念： 我們提供三種層級的服務，協助「有實力、缺曝光」的傳統產業專家</p>透過 AI 賦能的短影音策略，轉型為高價值的線上 IP。
-            </p>
+const Section = ({ title, icon: Icon, isActive, onToggle, children }) => (
+  <div className={`mb-6 border rounded-xl overflow-hidden shadow-sm transition-all duration-300 ${isActive ? 'ring-2 ring-indigo-500 bg-white' : 'bg-gray-50'}`}>
+    <button 
+      onClick={onToggle}
+      className="w-full flex items-center justify-between p-4 bg-white border-b border-gray-100 hover:bg-gray-50 transition-colors"
+    >
+      <div className="flex items-center space-x-3">
+        <div className={`p-2 rounded-lg ${isActive ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-200 text-gray-500'}`}>
+          <Icon size={20} />
         </div>
+        <h2 className="text-lg font-bold text-gray-800 text-left">{title}</h2>
+      </div>
+      {isActive ? <ChevronUp size={20} className="text-gray-400" /> : <ChevronDown size={20} className="text-gray-400" />}
+    </button>
+    
+    {isActive && (
+      <div className="p-5 space-y-6 animate-fadeIn">
+        {children}
+      </div>
+    )}
+  </div>
+);
 
-        <!-- 核心服務：三層火箭方案 -->
-        <h2 class="text-3xl font-bold text-center mb-12">核心服務：品牌 IP 打造三層火箭</h2>
+const Label = ({ required, children }) => (
+  <label className="block text-sm font-medium text-gray-700 mb-2">
+    {children}
+    {required && <span className="text-red-500 ml-1">*</span>}
+  </label>
+);
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
+const CheckboxGroup = ({ options, selected, onChange }) => (
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    {options.map(opt => (
+      <label key={opt} className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${selected.includes(opt) ? 'bg-indigo-50 border-indigo-300' : 'hover:bg-gray-50 border-gray-200'}`}>
+        <input
+          type="checkbox"
+          className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+          checked={selected.includes(opt)}
+          onChange={() => onChange(opt)}
+        />
+        <span className="ml-2 text-sm text-gray-700">{opt}</span>
+      </label>
+    ))}
+  </div>
+);
 
-            <!-- 方案A：品牌起步 -->
-            <div class="pricing-card bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
-                <div class="card-content">
-                    <h3 class="text-2xl font-bold text-gray-900">方案A：品牌起步</h3>
-                    <p class="mt-4 text-gray-600">核心目標： 快速測試市場，建立您的第一批核心影像素材。</p>
-                    
-                    <div class="mt-8">
-                        <span class="text-3xl font-bold text-gray-500 line-through">$18,000</span>
-                        <div class="flex items-baseline justify-center">
-                            <span class="text-5xl font-extrabold text-red-600">$15,000</span>
-                            <span class="ml-2 text-xl font-bold text-red-600">(9折)</span>
-                        </div>
-                    </div>
+const RadioGroup = ({ name, options, selected, onChange }) => (
+  <div className="space-y-2">
+    {options.map(opt => (
+      <label key={opt} className="flex items-center cursor-pointer">
+        <input
+          type="radio"
+          name={name}
+          value={opt}
+          checked={selected === opt}
+          onChange={onChange}
+          className="w-4 h-4 text-indigo-600 border-gray-300 focus:ring-indigo-500"
+        />
+        <span className="ml-2 text-sm text-gray-700">{opt}</span>
+      </label>
+    ))}
+  </div>
+);
 
-                    <ul class="mt-8 space-y-4 text-gray-700">
-                        <li class="flex items-start space-x-3">
-                            <span class="check-icon bg-green-500">✓</span>
-                            <span>3 支 高質感短影音 (含企劃/拍攝/剪輯)</span>
-                        </li>
-                        <li class="flex items-start space-x-3">
-                            <span class="check-icon bg-green-500">✓</span>
-                            <span>3 張 專業產品照</span>
-                        </li>
-                    </ul>
-                    
-                </div>
-                <button type-="button" data-plan="A" class="plan-button mt-10 w-full block bg-gray-800 text-white text-center py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 transition-colors">
-                    查看詳情
-                </button>
-            </div>
-
-            <!-- 方案B：AI 策略 - 中立化 -->
-            <div class="pricing-card bg-white p-8 rounded-2xl shadow-lg border border-gray-200 relative">
-                <div class="card-content">
-                    <h3 class="text-2xl font-bold text-gray-900">方案B：AI 策略</h3>
-                    <p class="mt-4 text-gray-600">核心目標： 策略規劃，為您注入「AI 策略大腦」，提供完整彈藥庫。</p>
-                    
-                    <div class="mt-8">
-                        <span class="text-5xl font-extrabold text-gray-900">$25,000</span>
-                    </div>
-
-                    <ul class="mt-8 space-y-4 text-gray-700">
-                        <li class="flex items-start space-x-3">
-                            <span class="check-icon bg-green-500">✓</span>
-                            <span>1 份 【AI 品牌智能體】 (客製化 AI 助手)</span>
-                        </li>
-                        <li class="flex items-start space-x-3">
-                            <span class="check-icon bg-green-500">✓</span>
-                            <span>90分鐘深度IP訪談</span>
-                        </li>
-                        <li class="flex items-start space-x-3">
-                            <span class="check-icon bg-green-500">✓</span>
-                            <span>1 份 完整概念腳本庫(共 12 支)</span>
-                        </li>
-                    </ul>
-                    
-                </div>
-                <button type="button" data-plan="B" class="plan-button mt-10 w-full block bg-gray-800 text-white text-center py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 transition-colors">
-                    查看詳情
-                </button>
-            </div>
-
-            <!-- 方案C：品牌打造 (The Anchor) -->
-            <div class="pricing-card bg-white p-8 rounded-2xl shadow-lg border border-gray-200">
-                <div class="card-content">
-                    <h3 class="text-2xl font-bold text-gray-900">方案C：品牌打造全案</h3>
-                    <p class="mt-4 text-gray-600">核心目標： 一站式執行 ，從 0 到 1 建立所有品牌資產。</p>
-                    
-                    <div class="mt-8">
-                        <span class="text-3xl font-bold text-gray-500 line-through">$93,000</span>
-                        <div class="flex items-baseline justify-center">
-                            <span class="text-5xl font-extrabold text-red-600">$75,000</span>
-                            <span class="ml-2 text-xl font-bold text-red-600">(8折)</span>
-                        </div>
-                    </div>
-
-                    <ul class="mt-8 space-y-4 text-gray-700">
-                        <li class="flex items-start space-x-3">
-                            <span class="check-icon bg-green-500">✓</span>
-                            <span>包含方案B內容</span>
-                        <li class="flex items-start space-x-3">
-                            <span class="check-icon bg-green-500">✓</span>
-                            <span>12 支 高質感短影音 (含企劃/拍攝/剪輯)</span>
-                        </li>
-                        <li class="flex items-start space-x-3">
-                            <span class="check-icon bg-green-500">✓</span>
-                            <span>1 頁 品牌形象網站</span>
-                        </li>
-                        <li class="flex items-start space-x-3">
-                            <span class="check-icon bg-green-500">✓</span>
-                            <span>3 張 專業產品照</span>
-                        </li>
-                    </ul>
-                    
-                </div>
-                <button type="button" data-plan="C" class="plan-button mt-10 w-full block bg-gray-800 text-white text-center py-3 px-6 rounded-lg font-semibold hover:bg-gray-700 transition-colors">
-                    查看詳情
-                </button>
-            </div>
-
-        </div>
-
-        <!-- 👇 新增的動態內容區塊 👇 -->
-        <div id="plan-details-container" class="mt-16 max-w-5xl mx-auto hidden transition-all duration-300">
-            <div id="plan-details-content" class="bg-white p-8 sm:p-12 rounded-2xl shadow-xl border border-gray-200">
-                <!-- JavaScript 將在這裡注入內容 -->
-            </div>
-        </div>
-
-        <!-- 單點服務 & AI 顧問方案 -->
-        <div class="mt-20 pt-12 border-t border-gray-200">
-            <div class="max-w-3xl mx-auto text-center">
-                <h2 class="text-3xl font-bold text-gray-900">單點服務 & AI 顧問方案</h2>
-               
-            </div>
-
-            <div class="mt-12 max-w-3xl mx-auto bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-200">
-                <div class="divide-y divide-gray-200">
-                    
-                    <div class="flex flex-col sm:flex-row justify-between items-center p-6">
-                        <div class="mb-2 sm:mb-0">
-                            <h4 class="text-lg font-semibold text-gray-900">單支短影音</h4>
-                            <p class="text-sm text-gray-600">企劃 + 拍攝 + 剪輯 (單次需求)。</p>
-                        </div>
-                        <span class="text-2xl font-bold text-gray-900">$6,000</span>
-                    </div>
-                    
-                    <div class="flex flex-col sm:flex-row justify-between items-center p-6">
-                        <div class="mb-2 sm:mb-0">
-                            <h4 class="text-lg font-semibold text-gray-900">一頁式網站設計</h4>
-                            <p class="text-sm text-gray-600">品牌形象網站架設。</p>
-                        </div>
-                        <span class="text-2xl font-bold text-gray-900">$8,000</span>
-                    </div>
-
-                    <div class="flex flex-col sm:flex-row justify-between items-center p-6 bg-gray-50">
-                        <div class="mb-2 sm:mb-0">
-                            <h4 class="text-lg font-semibold text-gray-900">AI 企業內訓</h4>
-                            <p class="text-sm text-gray-600">為您的團隊導入 AI 工作流、建立專屬智能體。</p>
-                        </div>
-                        <span class="text-xl font-bold text-gray-700">$ 專案洽談</span>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-
-        <!-- 頁腳 -->
-        <footer class="mt-20 pt-12 text-center border-t border-gray-200">
-            <p class="text-base text-gray-500">© 2025 Fin (AI 實戰顧問). All rights reserved.</p>
-        </footer>
-
+// 新增：專門處理「其他」輸入的元件
+const OtherTextInput = ({ visible, value, onChange, placeholder = "請具體說明..." }) => {
+  if (!visible) return null;
+  return (
+    <div className="mt-2 ml-1 animate-fadeIn">
+       <input
+        type="text"
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full p-2 border-b-2 border-indigo-200 focus:border-indigo-500 outline-none bg-indigo-50/30 text-gray-700 text-sm transition-colors"
+        autoFocus
+      />
     </div>
+  );
+};
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
+// --- 主應用程式 ---
+
+export default function App() {
+  const [formData, setFormData] = useState({
+    // Section 1
+    goals: [],
+    goalsOther: '',
+    primaryGoal: '',
+    primaryGoalOther: '',
+    metrics: '',
+    mainProduct: '',
+    // Section 2
+    age: [],
+    gender: '',
+    occupation: '',
+    painPoints: [],
+    painPointsOther: '',
+    platforms: [],
+    platformsOther: '',
+    // Section 3
+    usp: [],
+    uspOther: '',
+    keywords: '',
+    story: '',
+    // Section 4
+    marketingHistory: [],
+    pastResults: '',
+    bottlenecks: [],
+    assets: { fb: '', ig: '', web: '', other: '' },
+    // Section 5
+    competitors: '',
+    styleLike: '',
+    styleDislike: '',
+    // Section 6
+    actor: '',
+    location: '',
+    locationOther: '',
+    time: [],
+    budget: ''
+  });
+
+  const [showResult, setShowResult] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [activeSection, setActiveSection] = useState(0);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAssetChange = (key, value) => {
+    setFormData(prev => ({
+      ...prev,
+      assets: { ...prev.assets, [key]: value }
+    }));
+  };
+
+  const handleCheckboxChange = (name, value) => {
+    setFormData(prev => {
+      const list = prev[name] || [];
+      if (list.includes(value)) {
+        return { ...prev, [name]: list.filter(item => item !== value) };
+      } else {
+        return { ...prev, [name]: [...list, value] };
+      }
+    });
+  };
+
+  const toggleSection = (index) => {
+    setActiveSection(activeSection === index ? -1 : index);
+  };
+
+  // 輔助函式：格式化輸出，如果遇到「其他」則補上輸入的內容
+  const formatList = (list, otherText, otherKey = '其他') => {
+    if (!list || list.length === 0) return '未填寫';
+    return list.map(item => {
+      if (item === otherKey || item.includes('其他')) {
+        return `${item} (${otherText || '未填寫內容'})`;
+      }
+      return item;
+    }).join(', ');
+  };
+
+  const formatSingle = (item, otherText, otherKey = '其他') => {
+     if (!item) return '未填寫';
+     if (item === otherKey || item.includes('其他')) {
+       return `${item} (${otherText || '未填寫內容'})`;
+     }
+     return item;
+  };
+
+  const generateReport = () => {
+    const report = `
+【客戶短影音需求訪談回覆】
+
+--- 🎯 區塊一：核心目標 ---
+[商業目的]: ${formatList(formData.goals, formData.goalsOther)}
+[首要目標]: ${formatSingle(formData.primaryGoal, formData.primaryGoalOther, 'D. 其他')}
+[期望數據指標]: ${formData.metrics || '未填寫'}
+[核心推廣產品]: ${formData.mainProduct || '未填寫'}
+
+--- 👥 區塊二：目標受眾 ---
+[年齡層]: ${formData.age.join(', ') || '未填寫'}
+[性別]: ${formData.gender || '未填寫'}
+[職業特徵]: ${formData.occupation || '未填寫'}
+[客戶痛點]: ${formatList(formData.painPoints, formData.painPointsOther)}
+[出沒平台]: ${formatList(formData.platforms, formData.platformsOther)}
+
+--- 💎 區塊三：品牌與人設 ---
+[獨特賣點 USP]: ${formatList(formData.usp, formData.uspOther)}
+[品牌關鍵字]: ${formData.keywords || '未填寫'}
+[創辦故事]: ${formData.story || '未填寫'}
+
+--- 📊 區塊四：現況與痛點 ---
+[嘗試過的行銷]: ${formData.marketingHistory.join(', ') || '未填寫'}
+[過去效果]: ${formData.pastResults || '未填寫'}
+[主要卡點]: ${formData.bottlenecks.join(', ') || '未填寫'}
+[現有資產]:
+  FB: ${formData.assets.fb}
+  IG: ${formData.assets.ig}
+  Web: ${formData.assets.web}
+  Other: ${formData.assets.other}
+
+--- 🔭 區塊五：競品與參考 ---
+[主要競品]: ${formData.competitors || '未填寫'}
+[喜歡的風格]: ${formData.styleLike || '未填寫'}
+[不喜歡的風格]: ${formData.styleDislike || '未填寫'}
+
+--- ⚙️ 區塊六：資源與範疇 ---
+[主要出鏡者]: ${formData.actor || '未填寫'}
+[拍攝場地]: ${formatSingle(formData.location, formData.locationOther)}
+[配合時間]: ${formData.time.join(', ') || '未填寫'}
+[預算範圍]: ${formData.budget || '未填寫'}
+    `;
+    return report.trim();
+  };
+
+  const copyToClipboard = () => {
+    const text = generateReport();
+    // 使用兼容性更好的複製方法，避免 Iframe 限制
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed'; // 避免頁面滾動
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('複製失敗', err);
+      // 如果真的失敗，備用方案
+      alert('自動複製失敗，請手動選取文字複製。');
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 py-8 px-4 sm:px-6 lg:px-8 font-sans">
+      <div className="max-w-3xl mx-auto">
+        
+        {/* Header */}
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-8 mb-8 text-white shadow-lg">
+          <h1 className="text-3xl font-bold mb-2">Fin短影音品牌顧問｜客戶訪談表單</h1>
+          <p className="text-indigo-100 opacity-90">
+            這份表單能幫助我們快速釐清您的品牌需求與目標，請依據您的直覺與現況填寫，越詳細我們越能為您量身打造策略。
+          </p>
+        </div>
+
+        {/* Form Sections */}
+        <div className="space-y-4">
+          
+          <Section 
+            title="區塊一：核心目標 (您想解決什麼問題？)" 
+            icon={Target} 
+            isActive={activeSection === 0} 
+            onToggle={() => toggleSection(0)}
+          >
+            <div>
+              <Label required>1. 您希望透過短影音，達到哪些「商業目的」？(可複選)</Label>
+              <CheckboxGroup 
+                selected={formData.goals}
+                onChange={(val) => handleCheckboxChange('goals', val)}
+                options={[
+                  '增加品牌知名度 (讓更多人認識)',
+                  '帶來直接轉化 (增加預約/訂單/私訊)',
+                  '建立專家/品牌形象 (信任感)',
+                  '其他'
+                ]} 
+              />
+              <OtherTextInput 
+                visible={formData.goals.includes('其他')}
+                value={formData.goalsOther}
+                onChange={(e) => setFormData(prev => ({ ...prev, goalsOther: e.target.value }))}
+              />
+            </div>
             
-            const planDetails = {
-                'A': {
-                    title: '方案A：品牌起步 (詳細內容)',
-                    description: '此方案專為希望快速測試市場、建立基礎素材的客戶設計。我們將集中資源，在最短時間內產出高質感的影像素材。',
-                    features: [
-                        { name: '3 支高質感短影音', desc: '我們將與您共同企劃 3 支核心影片，內容可聚焦於「核心服務介紹」、「產品展示」或「創辦人理念」，並在單次拍攝日內（約 4 小時）完成所有素材拍攝。' },
-                        { name: '3 張專業產品照', desc: '在拍攝影片的同時，為您的核心產品拍攝專業、高解析度的情境照片，可用於網站或社群媒體。' },
-                        { name: '顧問建議', desc: '此方案適合已有網站，或希望先透過影片在社群媒體試水溫的客戶。' }
-                    ]
-                },
-                'B': {
-                    title: '方案B：AI 策略啟動包 (深度解析)',
-                    description: '這不只是一份腳本，這是一套完整的「AI 賦能系統」。我們將交付您的「策略大腦」，讓您擁有無限的創意產能，並真正「擁有」您的品牌策略。',
-                    features: [
-                        { name: '什麼是「AI 品牌智能體」？', desc: '這不是 ChatGPT。這是一個由我（Fin）親自為您量身打造的 AI 策略夥伴。我會將我們 90 分鐘深度訪談的所有品牌資訊——您的 IP 人設、Slogan、獨特賣點、目標客群、甚至您的口吻——全部灌輸到這個 AI 智能體中。它就是您品牌的 AI 分身。' },
-                        { name: '核心任務 1：24/7 腳本創意引擎', desc: '您不必再為「下週要拍什麼」而焦慮。您可以隨時命令它：「給我 5 個『老闆真心話』的新腳本，要融合『反向操作』風格。」或「我今天遇到一個客人... 幫我把這個故事寫成『聊癒系』腳本。」' },
-                        { name: '核心任務 2：策略腦力激盪夥伴', desc: '它能以「品牌顧問」的思考模式協助您。您可以命令它：「我下個月想主推『水霧染』，幫我規劃 3 個符合我『聊癒系』IP 的創意切角。」' },
-                        { name: '方案 B 的真正價值', desc: '方案 A 是我給您「3 條魚」。方案 C 是我「每個月幫您釣 12 條魚」。**方案 B 是我教您如何打造一個「AI 自動化釣魚工廠」。**' }
-                    ]
-                },
-                'C': {
-                    title: '方案C：品牌打造全案 (詳細內容)',
-                    description: '此方案是我們的「一站式」旗艦服務 (Done for you)。您只需專注於您的專業，我們將為您處理從策略、腳b本、拍攝、剪輯到網站架設的所有執行細節。',
-                    features: [
-                        { name: '12 支高質感短影音', desc: '一個完整季度的內容佈局。我們將執行我們規劃的「核心內容鐵三角」（例如：專業知識、老闆真心話、療癒故事），確保您的品牌形象立體而豐滿。' },
-                        { name: '1 頁品牌形象網站', desc: '完整的一站式網站建置，包含專業預約表單，作為您所有流量的最終「承接頁」與「轉單中心」。' },
-                        { name: 'AI 策略導入', desc: '此方案**同樣包含**方案 B 的「AI 品牌智能體」，確保我們的執行工作 100% 基於 AI 策略，並讓您在合約期滿後，依然擁有持續產出創意的能力。' }
-                    ]
-                }
-            };
+            <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <Label required>2. 承上，哪一個是您「最重要、最優先」的首要目標？(單選)</Label>
+               <RadioGroup 
+                name="primaryGoal"
+                selected={formData.primaryGoal}
+                onChange={handleInputChange}
+                options={[
+                  'A. 增加品牌知名度',
+                  'B. 帶來直接轉化',
+                  'C. 建立專家/品牌形象',
+                  'D. 其他'
+                ]}
+              />
+              <OtherTextInput 
+                visible={formData.primaryGoal === 'D. 其他'}
+                value={formData.primaryGoalOther}
+                onChange={(e) => setFormData(prev => ({ ...prev, primaryGoalOther: e.target.value }))}
+              />
+            </div>
 
-            const detailsContainer = document.getElementById('plan-details-container');
-            const detailsContent = document.getElementById('plan-details-content');
-            const buttons = document.querySelectorAll('.plan-button');
+            <div>
+              <Label>3. 具體數字：您希望在 3 個月後看到什麼改變？</Label>
+              <textarea 
+                name="metrics"
+                value={formData.metrics}
+                onChange={handleInputChange}
+                placeholder="例如：每月新客預約增加 10 位、IG 粉絲增長 1000 人..."
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                rows={2}
+              />
+            </div>
 
-            function showDetails(plan) {
-                const content = planDetails[plan];
-                if (!content) return;
+            <div>
+              <Label>4. 主要推廣：目前最想推廣的核心服務或產品？</Label>
+              <input 
+                type="text"
+                name="mainProduct"
+                value={formData.mainProduct}
+                onChange={handleInputChange}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="請列出 1-3 個核心項目"
+              />
+            </div>
+          </Section>
 
-                let featuresHtml = content.features.map(feature => `
-                    <li class="mb-4">
-                        <h4 class="text-lg font-semibold text-indigo-700">${feature.name}</h4>
-                        <p class="text-gray-600 mt-1">${feature.desc}</p>
-                    </li>
-                `).join('');
+          <Section 
+            title="區塊二：目標受眾 (您想跟誰說話？)" 
+            icon={Users} 
+            isActive={activeSection === 1}
+            onToggle={() => toggleSection(1)}
+          >
+            <div>
+              <Label>1. 理想客戶年齡範圍 (可複選)</Label>
+              <CheckboxGroup 
+                selected={formData.age}
+                onChange={(val) => handleCheckboxChange('age', val)}
+                options={['20 歲以下', '20-30 歲', '30-40 歲', '40-50 歲', '50 歲以上']} 
+              />
+            </div>
 
-                let html = `
-                    <div class="relative">
-                        <button id="close-details-btn" type="button" class="absolute -top-4 -right-4 sm:-top-8 sm:-right-8 text-gray-400 hover:text-gray-600 transition-colors" aria-label="關閉詳情">
-                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                        <h2 class="text-3xl font-extrabold text-gray-900 mb-4">${content.title}</h2>
-                        <p class="text-lg text-gray-700 mb-8">${content.description}</p>
-                        <ul class="border-t border-gray-200 pt-8">
-                            ${featuresHtml}
-                        </ul>
-                    </div>
-                `;
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>2. 性別傾向</Label>
+                <select 
+                  name="gender" 
+                  value={formData.gender} 
+                  onChange={handleInputChange}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">請選擇</option>
+                  <option value="男性為主">男性為主</option>
+                  <option value="女性為主">女性為主</option>
+                  <option value="皆有">皆有</option>
+                </select>
+              </div>
+              <div>
+                <Label>3. 職業/特徵</Label>
+                <input 
+                  type="text" 
+                  name="occupation" 
+                  value={formData.occupation}
+                  onChange={handleInputChange}
+                  placeholder="例如：忙碌上班族、新手媽媽..."
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
 
-                detailsContent.innerHTML = html;
-                detailsContainer.classList.remove('hidden');
+            <div>
+              <Label>4. 客戶痛點：他們通常最困擾什麼？(可複選)</Label>
+              <CheckboxGroup 
+                selected={formData.painPoints}
+                onChange={(val) => handleCheckboxChange('painPoints', val)}
+                options={[
+                  '價格太高 / 怕被騙',
+                  '資訊不足 / 不知道如何選擇',
+                  '害怕踩雷 / 過去有不好的經驗',
+                  '找不到符合風格/需求的店家',
+                  '其他'
+                ]} 
+              />
+               <OtherTextInput 
+                visible={formData.painPoints.includes('其他')}
+                value={formData.painPointsOther}
+                onChange={(e) => setFormData(prev => ({ ...prev, painPointsOther: e.target.value }))}
+              />
+            </div>
 
-                detailsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            <div>
+              <Label>5. 出沒地點：他們習慣在哪獲取資訊？(可複選)</Label>
+              <CheckboxGroup 
+                selected={formData.platforms}
+                onChange={(val) => handleCheckboxChange('platforms', val)}
+                options={['Instagram', 'TikTok', 'Facebook', 'YouTube', 'Google 搜尋', 'Dcard/PTT', '其他']} 
+              />
+              <OtherTextInput 
+                visible={formData.platforms.includes('其他')}
+                value={formData.platformsOther}
+                onChange={(e) => setFormData(prev => ({ ...prev, platformsOther: e.target.value }))}
+              />
+            </div>
+          </Section>
 
-                document.getElementById('close-details-btn').addEventListener('click', hideDetails);
-            }
+          <Section 
+            title="區塊三：品牌與人設 (您是誰？)" 
+            icon={User} 
+            isActive={activeSection === 2}
+            onToggle={() => toggleSection(2)}
+          >
+            <div>
+              <Label>1. 獨特賣點 (USP)：您的最大優勢？(可複選)</Label>
+              <CheckboxGroup 
+                selected={formData.usp}
+                onChange={(val) => handleCheckboxChange('usp', val)}
+                options={[
+                  '價格優勢 (CP 值高)',
+                  '技術/品質 (業界頂尖)',
+                  '服務體驗 (貼心、客製化)',
+                  '品牌風格 (美感、獨特)',
+                  '地理位置 (方便)',
+                  '其他'
+                ]} 
+              />
+              <OtherTextInput 
+                visible={formData.usp.includes('其他')}
+                value={formData.uspOther}
+                onChange={(e) => setFormData(prev => ({ ...prev, uspOther: e.target.value }))}
+              />
+            </div>
 
-            function hideDetails() {
-                detailsContainer.classList.add('hidden');
-                detailsContent.innerHTML = '';
-            }
+            <div>
+              <Label>2. 品牌關鍵字 (請給 3 個)</Label>
+              <input 
+                type="text" 
+                name="keywords" 
+                value={formData.keywords}
+                onChange={handleInputChange}
+                placeholder="例如：專業、信賴、時尚、親切..."
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
 
-            buttons.forEach(button => {
-                button.addEventListener('click', () => {
-                    const plan = button.getAttribute('data-plan');
-                    showDetails(plan);
-                });
-            });
+            <div>
+              <Label>3. 創辦故事 (選填)</Label>
+              <textarea 
+                name="story" 
+                value={formData.story}
+                onChange={handleInputChange}
+                rows={3}
+                placeholder="若有特別的故事，有助於規劃「故事型」腳本"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </Section>
 
-        });
-    </script>
+          <Section 
+            title="區塊四：現況與痛點 (目前卡在哪？)" 
+            icon={BarChart} 
+            isActive={activeSection === 3}
+            onToggle={() => toggleSection(3)}
+          >
+            <div>
+              <Label>1. 嘗試過的行銷 (可複選)</Label>
+              <CheckboxGroup 
+                selected={formData.marketingHistory}
+                onChange={(val) => handleCheckboxChange('marketingHistory', val)}
+                options={['FB/IG 廣告', 'Google 關鍵字', '自己拍片/經營社群', '網紅/KOL 業配', '傳統傳單', '無，剛起步']} 
+              />
+            </div>
 
-</body>
-</html>
+            <div>
+              <Label>2. 過去嘗試的效果如何？</Label>
+              <input 
+                type="text" 
+                name="pastResults" 
+                value={formData.pastResults}
+                onChange={handleInputChange}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <Label>3. 內容行銷最卡的地方？(可複選)</Label>
+              <CheckboxGroup 
+                selected={formData.bottlenecks}
+                onChange={(val) => handleCheckboxChange('bottlenecks', val)}
+                options={[
+                  '不知道要拍什麼 (缺乏選題)',
+                  '不會/沒時間拍攝 (缺乏人力)',
+                  '不會剪輯/後製 (缺乏技術)',
+                  '拍了但沒人看 (缺乏流量)',
+                  '內容無法變現 (缺乏轉換)'
+                ]} 
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+              <div className="col-span-full mb-2 font-medium text-gray-700">4. 現有資產連結</div>
+              <input placeholder="FB 連結" value={formData.assets.fb} onChange={(e) => handleAssetChange('fb', e.target.value)} className="p-2 border rounded" />
+              <input placeholder="IG 連結" value={formData.assets.ig} onChange={(e) => handleAssetChange('ig', e.target.value)} className="p-2 border rounded" />
+              <input placeholder="Website 連結" value={formData.assets.web} onChange={(e) => handleAssetChange('web', e.target.value)} className="p-2 border rounded" />
+              <input placeholder="其他連結" value={formData.assets.other} onChange={(e) => handleAssetChange('other', e.target.value)} className="p-2 border rounded" />
+            </div>
+          </Section>
+
+          <Section 
+            title="區塊五：競品與參考 (喜歡/不喜歡？)" 
+            icon={Layers} 
+            isActive={activeSection === 4}
+            onToggle={() => toggleSection(4)}
+          >
+            <div>
+              <Label>1. 主要競品 (請列舉 2-3 個)</Label>
+              <textarea 
+                name="competitors" 
+                value={formData.competitors}
+                onChange={handleInputChange}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                rows={2}
+              />
+            </div>
+             <div>
+              <Label>2. 風格參考 (喜歡的帳號與原因)</Label>
+              <textarea 
+                name="styleLike" 
+                value={formData.styleLike}
+                onChange={handleInputChange}
+                placeholder="帳號名稱 + 喜歡原因..."
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                rows={3}
+              />
+            </div>
+            <div>
+              <Label>3. 風格參考 (不喜歡/絕對不想成為的)</Label>
+              <textarea 
+                name="styleDislike" 
+                value={formData.styleDislike}
+                onChange={handleInputChange}
+                placeholder="帳號名稱 + 不喜歡原因..."
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+                rows={3}
+              />
+            </div>
+          </Section>
+
+          <Section 
+            title="區塊六：資源與範疇 (如何配合？)" 
+            icon={Settings} 
+            isActive={activeSection === 5}
+            onToggle={() => toggleSection(5)}
+          >
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label>1. 主要出鏡者</Label>
+                <select name="actor" value={formData.actor} onChange={handleInputChange} className="w-full p-3 border border-gray-300 rounded-lg">
+                  <option value="">請選擇</option>
+                  <option value="創辦人/本人">創辦人/本人</option>
+                  <option value="員工/團隊">員工/團隊</option>
+                  <option value="暫不確定">暫不確定</option>
+                </select>
+              </div>
+              <div>
+                <Label>2. 主要場地</Label>
+                <select name="location" value={formData.location} onChange={handleInputChange} className="w-full p-3 border border-gray-300 rounded-lg">
+                  <option value="">請選擇</option>
+                  <option value="店面/工作室">店面/工作室</option>
+                  <option value="戶外">戶外</option>
+                  <option value="需租借場地">需租借場地</option>
+                  <option value="其他">其他</option>
+                </select>
+                <OtherTextInput 
+                  visible={formData.location === '其他'}
+                  value={formData.locationOther}
+                  onChange={(e) => setFormData(prev => ({ ...prev, locationOther: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label>3. 可配合時間 (可複選)</Label>
+              <CheckboxGroup 
+                selected={formData.time}
+                onChange={(val) => handleCheckboxChange('time', val)}
+                options={['平日白天', '平日晚上', '週末', '時間彈性/可協調']} 
+              />
+            </div>
+
+            <div>
+              <Label>4. 預算範圍 (行銷預算)</Label>
+              <input 
+                type="text" 
+                name="budget" 
+                value={formData.budget}
+                onChange={handleInputChange}
+                placeholder="這有助於為您推薦最適合的方案"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+          </Section>
+
+        </div>
+
+        {/* Footer Actions */}
+        <div className="mt-8 flex justify-end pb-12">
+          <button 
+            onClick={() => setShowResult(true)}
+            className="flex items-center px-8 py-4 bg-indigo-600 text-white text-lg font-bold rounded-xl shadow-lg hover:bg-indigo-700 transform hover:-translate-y-1 transition-all"
+          >
+            <CheckCircle className="mr-2" />
+            完成填寫，預覽回覆
+          </button>
+        </div>
+
+        {/* Result Modal */}
+        {showResult && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
+              <div className="p-6 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl">
+                <h3 className="text-xl font-bold text-gray-800">您的訪談回覆預覽</h3>
+                <button onClick={() => setShowResult(false)} className="text-gray-500 hover:text-gray-700">✕</button>
+              </div>
+              
+              <div className="p-6 overflow-y-auto flex-1 bg-gray-50">
+                <div className="bg-white p-4 border rounded-lg whitespace-pre-wrap text-sm text-gray-700 font-mono leading-relaxed">
+                  {generateReport()}
+                </div>
+              </div>
+
+              <div className="p-6 border-t bg-white rounded-b-2xl flex flex-col sm:flex-row gap-4">
+                <button 
+                  onClick={copyToClipboard}
+                  className={`flex-1 flex items-center justify-center px-6 py-3 rounded-lg font-bold transition-all ${copied ? 'bg-green-500 text-white' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                >
+                  {copied ? <span className="flex items-center"><CheckCircle className="mr-2" /> 已複製成功！</span> : <span className="flex items-center"><ClipboardCopy className="mr-2" /> 一鍵複製所有文字</span>}
+                </button>
+                <div className="text-xs text-gray-400 text-center sm:text-left flex items-center">
+                  <span className="bg-gray-100 p-2 rounded">
+                    💡 點擊「複製」後，請直接貼上到 LINE 或 Email 傳送給顧問。
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
